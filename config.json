@@ -1,0 +1,14 @@
+{
+  "server": {
+    "port": 4000
+  },
+  "GPIO": {
+    "step": 37,
+    "direction": 35
+  },
+  "motor": {
+    "maxSteps": 200,
+    "rotationInterval": 2
+  },
+  "defaultCamera": "strollerClient"
+}

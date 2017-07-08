@@ -1,0 +1,8 @@
+{
+  "name": "strollerClient",
+  "description": "Stroller client device camera",
+  "isActive": "true",
+  "params": {
+    "port": 5000
+  }
+}

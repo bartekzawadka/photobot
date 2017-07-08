@@ -3,8 +3,8 @@
     "port": 4000
   },
   "GPIO": {
-    "step": 37,
-    "direction": 35
+    "step": 26,
+    "direction": 19
   },
   "motor": {
     "maxSteps": 200,

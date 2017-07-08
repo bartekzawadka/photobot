@@ -5,7 +5,8 @@ var fs = require('fs');
 var _ = require('lodash');
 var path = require('path');
 var config = require(path.join(__dirname, '..', 'config.json'));
-var motorDriver = require(path.join(__dirname, 'device', 'motor'));
+var motorDriver = require(path.join(__dirname, 'device', 'motor.js'));
+var collUtils = require(path.join(__dirname, 'utils', 'collections.js'));
 
 var Manager = (function(){
    var instance;
@@ -31,32 +32,34 @@ var Manager = (function(){
 
 var ManagerLogic = function(){
     var statuses = {
-        READY: 0,
-        BUSY: 1
+        READY: "ready",
+        BUSY: "busy"
     };
 
-    var motorDriver = motorDriver.getInstance();
-    var currentStatus = statuses.READY;
+    this.mDriver = motorDriver.getInstance();
+    this.currentStatus = statuses.READY;
 
-    let configuration = {
-        stepAngle: motorDriver.getMinAngle(),
+    this.configuration = {
+        stepAngle: this.mDriver.getMinAngle(),
         direction: 'counter-clockwise',
         activeCamera: config.defaultCamera
     };
 
     ManagerLogic.prototype.getStatus = function(){
-        return currentStatus;
+        return this.currentStatus;
     };
 
     ManagerLogic.prototype.getCameras = function(){
-        let dirs = fs.readdirSync(path.join(__dirname, 'device', 'camera'))
-            .filter(file=>fs.lstatSync(path.join(__dirname, 'device', 'camera', file)).isDirectory());
+        var rootDir = path.join(__dirname, 'device', 'camera');
 
-        let devices = [];
+        var dirs = fs.readdirSync(rootDir)
+            .filter(file=>fs.lstatSync(path.join(rootDir, file)).isDirectory());
+
+        var devices = [];
 
         _.forEach(dirs, function(dir){
             try {
-                var obj = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf-8'));
+                var obj = JSON.parse(fs.readFileSync(path.join(rootDir, dir, 'config.json'), 'utf-8'));
                 if (obj.isActive) {
                     devices.push({
                         name: obj.name,
@@ -70,11 +73,28 @@ var ManagerLogic = function(){
         return devices;
     };
 
-    ManagerLogic.prototype.setActiveCamera = function(camera){
-        return null;
-    };
-
     ManagerLogic.prototype.setConfig = function(configuration){
+
+        if(configuration.stepAngle){
+            if(configuration.stepAngle<0 || configuration.stepAngle > 360){
+                throw "Invalid angle. Value must be set between 0 and 360";
+            }
+        }
+        if(configuration.direction){
+            var directions = this.mDriver.getDirections();
+
+            if(!collUtils.checkIfHasValue(directions, configuration.direction)){
+                throw  "Unknown direction '"+configuration.direction+"'";
+            }
+        }
+        if(configuration.activeCamera){
+            var cameras = this.getCameras();
+
+            if(!collUtils.checkIfValueExists(cameras, "name", configuration.activeCamera)){
+                throw "Camera '"+configuration.activeCamera+"' was not found";
+            }
+        }
+
         this.configuration = configuration;
     };
 
@@ -83,7 +103,7 @@ var ManagerLogic = function(){
     };
 
     ManagerLogic.prototype.getMinStepAngle = function(){
-        return motorDriver.getMinAngle();
+        return this.mDriver.getMinAngle();
     };
 
     ManagerLogic.prototype.capture = function(progressCallback, completed){
@@ -95,35 +115,48 @@ var ManagerLogic = function(){
           return;
       }
 
-        var iterator = 0;
-        var images = [];
+      this.currentStatus = statuses.BUSY;
 
-        var numOfImages = Math.round(360/configuration.stepAngle);
+      try {
 
-        function rotate(){
-            motorDriver.rotate(configuration.stepAngle, configuration.direction, function(e){
-                if(e){
-                    completed(null, e);
-                    return;
-                }
+          var iterator = 0;
+          var images = [];
 
-                //todo: take photo!
+          var numOfImages = Math.round(360 / this.configuration.stepAngle);
 
-                if(progressCallback){
-                    progressCallback(Math.round(iterator+1/numOfImages));
-                }
-                iterator++;
-                if(iterator<numOfImages){
-                    rotate();
-                }else{
-                    completed();
-                }
-            });
-        }
-        rotate();
+          function rotate(mDriver, configuration) {
+              mDriver.rotate(configuration.stepAngle, configuration.direction, function (e) {
+                  if (e) {
+                      completed(null, e);
+                      return;
+                  }
+
+                  var inter = setInterval(function () {
+                      console.log("TAKING PHOTO!");
+                      clearInterval(inter);
+                  }, 3000);
+
+
+                  if (progressCallback) {
+                      progressCallback(Math.round(iterator + 1 / numOfImages));
+                  }
+                  iterator++;
+                  if (iterator < numOfImages) {
+                      rotate(mDriver, configuration);
+                  } else {
+                      completed();
+                  }
+              });
+          }
+
+          rotate(this.mDriver, this.configuration);
+
+      }catch (e){
+          console.log("ERROR TAKING PHOTO 360: ", e);
+      }finally {
+          this.currentStatus = statuses.READY;
+      }
     };
-
-    //TODO: check if camera is OK
 };
 
 module.exports = Manager;

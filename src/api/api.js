@@ -15,6 +15,11 @@ var sendError = function(res, code, error){
     }));
 };
 
+let sendJsonResponse = function(res, data){
+  res.writeHead(200, {"Content-Type": "application/json"});
+  return res.end(JSON.stringify(data));
+};
+
 module.exports = {
     set: function(server){
 
@@ -31,11 +36,14 @@ module.exports = {
                 console.log("COMPLETED");
                 return res.send();
             });
-            // return res.send({"message": "NOT IMPLEMENTED"});
         });
 
         server.get(prefix+'/status', function(req, res){
            return res.send({status: manager.getStatus()});
+        });
+
+        server.get(prefix+'/directions', function(req, res){
+           return res.send(manager.getDirections());
         });
 
         server.post(prefix+'/config', function(req, res, next){
@@ -54,8 +62,13 @@ module.exports = {
         });
 
         server.get(prefix+'/config', function(req, res){
-            var config = manager.getConfig();
-            return res.send(config);
+             var config = manager.getConfig();
+             return sendJsonResponse(res, config);
+        });
+
+        server.post(prefix+'/defaultConfig', function(req, res){
+           manager.setDefaultConfig();
+           return res.send();
         });
 
         server.get(prefix+'/cameras', function(req, res){

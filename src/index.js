@@ -16,6 +16,13 @@ var server = restify.createServer({
 
 server.use(restifyBodyParser());
 
+server.use(function crossOrigin(req, res, next){
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", 'Authorization, Origin, Content-Type, Accept, X-Requested-With');
+    res.header('Access-Control-Allow-Methods', 'GET, POST');
+    return next();
+});
+
 api.set(server);
 
 Manager.initialize();

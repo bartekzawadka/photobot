@@ -39,11 +39,15 @@ var ManagerLogic = function(){
     this.mDriver = motorDriver.getInstance();
     this.currentStatus = statuses.READY;
 
-    this.configuration = {
-        stepAngle: this.mDriver.getMinAngle(),
-        direction: 'counter-clockwise',
-        activeCamera: config.defaultCamera
+    this.getDefaultConfiguration = function(){
+        return {
+            stepAngle: this.mDriver.getMinAngle(),
+            direction: 'counter-clockwise',
+            activeCamera: config.defaultCamera
+        }
     };
+
+    this.configuration = this.getDefaultConfiguration();
 
     ManagerLogic.prototype.getStatus = function(){
         return this.currentStatus;
@@ -74,6 +78,10 @@ var ManagerLogic = function(){
     };
 
     ManagerLogic.prototype.setConfig = function(configuration){
+
+        if(!configuration || _.isEmpty(configuration)){
+            return;
+        }
 
         if(configuration.stepAngle){
             if(configuration.stepAngle<0 || configuration.stepAngle > 360){
@@ -106,6 +114,17 @@ var ManagerLogic = function(){
         return this.mDriver.getMinAngle();
     };
 
+    ManagerLogic.prototype.setDefaultConfig = function(){
+      this.configuration = this.getDefaultConfiguration();
+    };
+
+    ManagerLogic.prototype.getDirections = function(){
+        let directions = [];
+        directions.push({name: 'Counter-clockwise', value: 'counter-clockwise'});
+        directions.push({name: 'Clockwise', value: 'clockwise'});
+        return directions;
+    };
+
     ManagerLogic.prototype.capture = function(progressCallback, completed){
       var status = this.getStatus();
       if(status === statuses.BUSY){
@@ -133,19 +152,23 @@ var ManagerLogic = function(){
 
                   var inter = setInterval(function () {
                       console.log("TAKING PHOTO!");
+
+                      if (progressCallback) {
+                          console.log('Normal: '+iterator/numOfImages);
+                          console.log('Rounded: '+Math.round(iterator*100 / numOfImages));
+                          progressCallback(Math.round(iterator*100 / numOfImages));
+                      }
+
+                      iterator++;
+                      if (iterator < numOfImages) {
+                          rotate(mDriver, configuration);
+                          iterator++;
+                      } else {
+                          completed();
+                      }
+
                       clearInterval(inter);
                   }, 3000);
-
-
-                  if (progressCallback) {
-                      progressCallback(Math.round(iterator + 1 / numOfImages));
-                  }
-                  iterator++;
-                  if (iterator < numOfImages) {
-                      rotate(mDriver, configuration);
-                  } else {
-                      completed();
-                  }
               });
           }
 

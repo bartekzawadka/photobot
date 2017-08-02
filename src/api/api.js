@@ -23,20 +23,48 @@ let sendJsonResponse = function(res, data){
 module.exports = {
     set: function(server){
 
-        var prefix = '/api';
+        let prefix = '/api';
 
         server.get(prefix+'/capture', function(req, res, next){
-            manager.capture(function(progress){
-                console.log("PRGORESS: ", progress);
-            }, function(imgs, err){
-
-                if(err){
-                    return sendError(res, 500, err);
-                }
-                console.log("COMPLETED");
-                return res.send();
-            });
+            try{
+                let token = manager.acquisitionInit();
+                return res.send({
+                    token: token
+                });
+            }catch (e){
+                return sendError(res, 403, e);
+            }
         });
+
+        server.del(prefix+'/capture', function(req, res, next){
+            if(!req.body || !req.body){
+                return sendError(res, 400, "Invalid cancellation data");
+            }
+
+            try{
+                manager.acquisitionCancel();
+                return res.send();
+            }catch (e){
+                return sendError(res, 500, e);
+            }
+        });
+		
+		server.post(prefix+'/image', function(req, res, next){
+            if(!req.body || !req.body){
+                return sendError(res, 400, "Image data was not provided");
+            }
+
+            try{
+                manager.appendImageAndRotate(req.body.token, req.body.image, function(data){
+                    return sendJsonResponse(res, data);
+                }, function(error){
+                    return sendError(res, 400, error);
+                });
+            }
+            catch (e){
+                return sendError(res, 500, e);
+            }
+		});
 
         server.get(prefix+'/status', function(req, res){
            return res.send({status: manager.getStatus()});

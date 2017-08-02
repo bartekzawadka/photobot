@@ -13,6 +13,7 @@
     "lodash": "^4.17.4",
     "pigpio": "^0.6.0",
     "restify": "^5.0.0",
-    "restify-plugins": "^1.6.0"
+    "restify-plugins": "^1.6.0",
+    //"socket.io": "^2.0.3"
   }
 }

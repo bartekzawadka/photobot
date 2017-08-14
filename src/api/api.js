@@ -36,13 +36,13 @@ module.exports = {
             }
         });
 
-        server.del(prefix+'/capture', function(req, res, next){
+        server.post(prefix+'/capture/cancel', function(req, res, next){
             if(!req.body || !req.body){
                 return sendError(res, 400, "Invalid cancellation data");
             }
 
             try{
-                manager.acquisitionCancel();
+                manager.acquisitionCancel(req.body.token);
                 return res.send();
             }catch (e){
                 return sendError(res, 500, e);
@@ -65,6 +65,14 @@ module.exports = {
                 return sendError(res, 500, e);
             }
 		});
+
+		server.get(prefix+'/image', function(req, res){
+		    return res.send({image: manager.getLastImage()});
+        });
+
+		server.get(prefix+'/images', function(req, res){
+		   return res.send(manager.getImages());
+        });
 
         server.get(prefix+'/status', function(req, res){
            return res.send({status: manager.getStatus()});

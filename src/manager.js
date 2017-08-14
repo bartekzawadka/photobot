@@ -8,8 +8,7 @@ var config = require(path.join(__dirname, '..', 'config.json'));
 var motorDriver = require(path.join(__dirname, 'device', 'motor.js'));
 var collUtils = require(path.join(__dirname, 'utils', 'collections.js'));
 var uuidUtils = require(path.join(__dirname, 'utils', 'uuid.js'));
-
-let socket = undefined;
+let dateUtils = require(path.join(__dirname, 'utils', 'date.js'));
 
 var Manager = (function () {
     var instance;
@@ -21,14 +20,11 @@ var Manager = (function () {
     return {
         getInstance: function () {
             if (!instance) {
-                instance = createInstance();
+                this.initialize();
             }
             return instance;
         },
-        initialize: function (socketIo) {
-
-            socket = socketIo;
-
+        initialize: function () {
             if (!instance) {
                 instance = createInstance();
             }
@@ -37,13 +33,6 @@ var Manager = (function () {
 })();
 
 var ManagerLogic = function () {
-
-    // if(!socket){
-    //     throw "Manager was not initialized. Socket.IO not instantiated";
-    // }
-    //this.socket = socket;
-
-    this.socketClient = undefined;
 
     let statuses = {
         READY: "ready",
@@ -57,11 +46,6 @@ var ManagerLogic = function () {
 
     this.mDriver = motorDriver.getInstance();
     this.currentStatus = statuses.READY;
-
-
-    // socket.on('disconnected', function(kk){
-    //    console.log('SOCKET DISCONNECTED: '+kk.id);
-    // });
 
     this.getDefaultConfiguration = function () {
         return {
@@ -84,6 +68,86 @@ var ManagerLogic = function () {
 
     this.configuration = this.getDefaultConfiguration();
     this.initializeAcquisitionData();
+
+    if (!config.imageStorageDirectory) {
+        throw "Stroller misconfiguration. Storage directory was not set";
+    }
+
+    if (!fs.existsSync(config.imageStorageDirectory)) {
+        fs.mkdirSync(config.imageStorageDirectory);
+    }
+
+    this.storeImage = function () {
+        if (!this.acquisitionData.token) {
+            throw "Image store failed. Invalid token";
+        }
+
+        if (!this.acquisitionData.images) {
+            throw "No data to be stored. Image set is empty";
+        }
+
+        let imageEntry = this.acquisitionData.images;
+
+        let file = path.join(config.imageStorageDirectory, this.acquisitionData.token + '.json');
+        if (fs.existsSync(file)) {
+            fs.unlinkSync(file);
+        }
+
+        let data = {
+            preview: imageEntry[0].image,
+            images: imageEntry
+        };
+        fs.writeFileSync(file, JSON.stringify(data));
+    };
+
+    ManagerLogic.prototype.getLastImage = function () {
+
+        let list = fs.readdirSync(config.imageStorageDirectory);
+        let name = '';
+        let ctime = undefined;
+        list.forEach(function (f) {
+            let k = path.join(config.imageStorageDirectory, f);
+
+            let stats = fs.statSync(k);
+            if (!ctime) {
+                ctime = new Date(stats.ctime);
+                name = k;
+            } else {
+                let d = new Date(stats.ctime);
+                if (d > ctime) {
+                    ctime = d;
+                    name = k;
+                }
+            }
+        });
+
+        if (ctime && name) {
+            let file = name;
+
+            let json = JSON.parse(fs.readFileSync(file));
+            return json.images;
+        }
+    };
+
+    ManagerLogic.prototype.getImages = function(){
+        let list = fs.readdirSync(config.imageStorageDirectory);
+        let files = [];
+
+        list.forEach(function (f) {
+            let k = path.join(config.imageStorageDirectory, f);
+            let stats = fs.statSync(k);
+
+            let ctime = new Date(stats.ctime);
+
+            files.push({
+                fileName: f,
+                ctime: ctime,
+                ctimeText: ctime.yyyymmdd()
+            });
+        });
+
+        return files;
+    };
 
     ManagerLogic.prototype.getStatus = function () {
         return this.currentStatus;
@@ -214,12 +278,19 @@ var ManagerLogic = function () {
             });
         } else {
 
-            // TODO: STORE TOTAL IMAGE!!!
+            try {
 
-            completed({
-                status: acquisitionStatuses.FINISHED,
-                progress: progress
-            });
+                this.storeImage(this.acquisitionData.images);
+
+                completed({
+                    status: acquisitionStatuses.FINISHED,
+                    progress: progress,
+                    //image: this.acquisitionData.images
+                });
+
+            } catch (e) {
+                failed(e);
+            }
 
             me.initializeAcquisitionData();
             me.currentStatus = statuses.READY;
@@ -239,92 +310,6 @@ var ManagerLogic = function () {
         this.acquisitionData.token = uuidUtils.generateGuid();
         return this.acquisitionData.token;
     };
-
-    // OLD
-    /*
-    ManagerLogic.prototype.capture2 = function (progressCallback, completed) {
-        var status = this.getStatus();
-        if (status === statuses.BUSY) {
-            if (completed) {
-                completed(null, "Device is busy");
-            }
-            return;
-        }
-
-        this.currentStatus = statuses.BUSY;
-
-        completed();
-
-        try {
-
-            var me = this;
-
-
-            var socketConnected = function (sss) {
-
-                var iterator = 0;
-                var images = [];
-
-                var numOfImages = Math.round(360 / me.configuration.stepAngle);
-
-                sss.emit('capturing started', {});
-
-
-                let capturedListener = function (data) {
-
-                    // STORE DATA USING ITERATOR AS INDEX
-
-                    sss.emit('progress', Math.round((iterator + 1) * 100 / numOfImages));
-                    iterator++;
-                    if (iterator < numOfImages) {
-                        rotate(me.mDriver, me.configuration, sss);
-                        //iterator++;
-                    } else {
-                        sss.emit('capturing completed');
-                        sss.removeListener('captured', capturedListener);
-                        sss.disconnect();
-                        //sss.conn.disconnect();
-                        sss.removeListener('connection', socketConnected);
-                    }
-                };
-
-
-                function rotate(mDriver, configuration, k) {
-                    mDriver.rotate(configuration.stepAngle, configuration.direction, function (e) {
-                        if (e) {
-                            //completed(null, e);
-                            sss.emit('capturing failed', e);
-                            sss.removeListener('captured', capturedListener);
-                            sss.disconnect();
-                            //sss.conn.disconnect();
-                            sss.removeListener('connection', socketConnected);
-                            return;
-                        }
-
-                        console.log("WAITING FOR PHOTO!");
-                        k.emit('capture');
-                    });
-                }
-
-                sss.on('captured', capturedListener);
-
-                rotate(me.mDriver, me.configuration, sss);
-            };
-
-
-            socket.once('connection', socketConnected);
-            socket.on('close', function (sss) {
-                sss.disconnect();
-                sss.removeListener('connection', socketConnected);
-            });
-
-        } catch (e) {
-            console.log("ERROR TAKING PHOTO 360: ", e);
-        } finally {
-            this.currentStatus = statuses.READY;
-        }
-    };
-    */
 };
 
 module.exports = Manager;

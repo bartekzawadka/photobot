@@ -10,5 +10,6 @@
     "maxSteps": 200,
     "rotationInterval": 2
   },
-  "defaultCamera": "strollerClient"
+  "defaultCamera": "strollerClient",
+  "imageStorageDirectory": "/home/pi/stroller/data"
 }

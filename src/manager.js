@@ -129,6 +129,31 @@ var ManagerLogic = function () {
         }
     };
 
+    ManagerLogic.prototype.getImage = function(id){
+        if(!id){
+            throw "Image ID was not provided";
+        }
+
+        let list = fs.readdirSync(config.imageStorageDirectory);
+
+        let filePath = undefined;
+
+        list.forEach(function (f) {
+
+            if(!_.includes(f, id)){
+                return;
+            }
+
+            filePath = path.join(config.imageStorageDirectory, f);
+        });
+
+        if(!filePath){
+            throw "Image was not found";
+        }
+
+        return JSON.parse(fs.readFileSync(filePath)).images;
+    };
+
     ManagerLogic.prototype.getImages = function(){
         let list = fs.readdirSync(config.imageStorageDirectory);
         let files = [];
@@ -140,9 +165,9 @@ var ManagerLogic = function () {
             let ctime = new Date(stats.ctime);
 
             files.push({
-                fileName: f,
                 ctime: ctime,
-                ctimeText: ctime.yyyymmdd()
+                ctimeText: ctime.yyyymmdd(),
+                id: f.substring(0, f.lastIndexOf('.'))
             });
         });
 

@@ -11,7 +11,7 @@ var sendError = function(res, code, error){
 
     res.writeHead(code, {"Content-Type": "application/json"});
     return res.end(JSON.stringify({
-        error: error
+        error: String(error)
     }));
 };
 
@@ -66,8 +66,20 @@ module.exports = {
             }
 		});
 
-		server.get(prefix+'/image', function(req, res){
+		server.get(prefix+'/image/last', function(req, res){
 		    return res.send({image: manager.getLastImage()});
+        });
+
+		server.get(prefix+'/image/:id', function(req, res){
+		    try {
+		        if(!req.params){
+		            return sendError(res, 400, "Invalid request parameters");
+                }
+
+                return res.send({image: manager.getImage(req.params.id)});
+            }catch (e){
+		        return sendError(res, 400, e);
+            }
         });
 
 		server.get(prefix+'/images', function(req, res){

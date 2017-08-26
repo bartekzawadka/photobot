@@ -42,7 +42,7 @@ module.exports = {
             }
 
             try{
-                manager.acquisitionCancel(req.body.token);
+                manager.acquisitionCancel(req.body.token, req.body.force);
                 return res.send();
             }catch (e){
                 return sendError(res, 500, e);

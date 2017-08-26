@@ -251,9 +251,12 @@ var ManagerLogic = function () {
         return directions;
     };
 
-    ManagerLogic.prototype.acquisitionCancel = function (token) {
-        if (!token || this.acquisitionData.token !== token) {
-            throw "Invalid token";
+    ManagerLogic.prototype.acquisitionCancel = function (token, force) {
+
+        if(!force) {
+            if (!token || this.acquisitionData.token !== token) {
+                throw "Invalid token";
+            }
         }
 
         this.initializeAcquisitionData();

@@ -9,6 +9,8 @@ var motorDriver = require(path.join(__dirname, 'device', 'motor.js'));
 var collUtils = require(path.join(__dirname, 'utils', 'collections.js'));
 var uuidUtils = require(path.join(__dirname, 'utils', 'uuid.js'));
 let dateUtils = require(path.join(__dirname, 'utils', 'date.js'));
+let Image = require(path.join(__dirname, 'models', 'image'));
+let imageUtils = require(path.join(__dirname, 'utils', 'image.js'));
 
 var Manager = (function () {
     var instance;
@@ -49,7 +51,7 @@ var ManagerLogic = function () {
 
     this.getDefaultConfiguration = function () {
         return {
-            stepAngle: this.mDriver.getMinAngle() * 4,
+            stepAngle: this.mDriver.getMinAngle(),
             direction: 'counter-clockwise',
             activeCamera: config.defaultCamera
         }
@@ -78,100 +80,68 @@ var ManagerLogic = function () {
     }
 
     this.storeImage = function () {
-        if (!this.acquisitionData.token) {
-            throw "Image store failed. Invalid token";
-        }
+        let me = this;
 
-        if (!this.acquisitionData.images) {
-            throw "No data to be stored. Image set is empty";
-        }
+        return new Promise(function(resolve, reject){
 
-        let imageEntry = this.acquisitionData.images;
-
-        let file = path.join(config.imageStorageDirectory, this.acquisitionData.token + '.json');
-        if (fs.existsSync(file)) {
-            fs.unlinkSync(file);
-        }
-
-        let data = {
-            preview: imageEntry[0].image,
-            images: imageEntry
-        };
-        fs.writeFileSync(file, JSON.stringify(data));
-    };
-
-    ManagerLogic.prototype.getLastImage = function () {
-
-        let list = fs.readdirSync(config.imageStorageDirectory);
-        let name = '';
-        let ctime = undefined;
-        list.forEach(function (f) {
-            let k = path.join(config.imageStorageDirectory, f);
-
-            let stats = fs.statSync(k);
-            if (!ctime) {
-                ctime = new Date(stats.ctime);
-                name = k;
-            } else {
-                let d = new Date(stats.ctime);
-                if (d > ctime) {
-                    ctime = d;
-                    name = k;
-                }
+            if (!me.acquisitionData.token) {
+                throw "Image store failed. Invalid token";
             }
+
+            if (!me.acquisitionData.images) {
+                throw "No data to be stored. Image set is empty";
+            }
+
+            let imagesArray = [];
+            _.forEach(me.acquisitionData.images, function(item){
+                imagesArray.push(item.image);
+            });
+
+            imageUtils.get360ImageThumbnail(imagesArray, 100).then(function(thumbnail){
+                Image.create({
+                    images: imagesArray,
+                    thumbnail: thumbnail
+                }, function(error, data){
+                    if(error){
+                        reject(error);
+                    } else{
+                        resolve();
+                    }
+                });
+            }, function(error){
+                reject(error);
+            });
         });
-
-        if (ctime && name) {
-            let file = name;
-
-            let json = JSON.parse(fs.readFileSync(file));
-            return json.images;
-        }
     };
 
     ManagerLogic.prototype.getImage = function(id){
-        if(!id){
-            throw "Image ID was not provided";
-        }
 
-        let list = fs.readdirSync(config.imageStorageDirectory);
-
-        let filePath = undefined;
-
-        list.forEach(function (f) {
-
-            if(!_.includes(f, id)){
+        return new Promise(function(resolve, reject){
+            if(!id){
+                reject("Image ID was not provided");
                 return;
             }
 
-            filePath = path.join(config.imageStorageDirectory, f);
+            Image.findById(id).exec(function(error, result){
+                if(error){
+                    reject(error);
+                }else{
+                    resolve(result);
+                }
+            });
         });
-
-        if(!filePath){
-            throw "Image was not found";
-        }
-
-        return JSON.parse(fs.readFileSync(filePath)).images;
     };
 
     ManagerLogic.prototype.getImages = function(){
-        let list = fs.readdirSync(config.imageStorageDirectory);
-        let files = [];
-
-        list.forEach(function (f) {
-            let k = path.join(config.imageStorageDirectory, f);
-            let stats = fs.statSync(k);
-
-            let ctime = new Date(stats.ctime);
-
-            files.push({
-                ctime: ctime,
-                ctimeText: ctime.yyyymmdd(),
-                id: f.substring(0, f.lastIndexOf('.'))
+        return new Promise(function(resolve, reject){
+            Image.find({}).select('_id thumbnail createdAt').sort('createdAt DESC').exec(function(error, result){
+                if(error){
+                    reject(error);
+                }else{
+                    resolve(result);
+                }
             });
         });
-
-        return files;
     };
 
     ManagerLogic.prototype.getStatus = function () {
@@ -308,12 +278,13 @@ var ManagerLogic = function () {
 
             try {
 
-                this.storeImage(this.acquisitionData.images);
-
-                completed({
-                    status: acquisitionStatuses.FINISHED,
-                    progress: progress,
-                    //image: this.acquisitionData.images
+                this.storeImage(this.acquisitionData.images).then(function(data){
+                    completed({
+                        status: acquisitionStatuses.FINISHED,
+                        progress: progress,
+                    });
+                }).catch(function(error){
+                    failed(error);
                 });
 
             } catch (e) {

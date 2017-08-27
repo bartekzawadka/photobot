@@ -11,5 +11,12 @@
     "rotationInterval": 2
   },
   "defaultCamera": "strollerClient",
-  "imageStorageDirectory": "/home/pi/stroller/data"
+  "imageStorageDirectory": "/home/pi/stroller/data",
+  "db": {
+    "collection": "Images",
+    "username": "",
+    "password": "",
+    "database": "stroller",
+    "host": "localhost"
+  }
 }

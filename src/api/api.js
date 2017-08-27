@@ -66,9 +66,10 @@ module.exports = {
             }
 		});
 
-		server.get(prefix+'/image/last', function(req, res){
-		    return res.send({image: manager.getLastImage()});
-        });
+		/// OBSOLETE
+        // server.get(prefix+'/image/last', function(req, res){
+		 //    return res.send({image: manager.getLastImage()});
+        // });
 
 		server.get(prefix+'/image/:id', function(req, res){
 		    try {
@@ -76,14 +77,22 @@ module.exports = {
 		            return sendError(res, 400, "Invalid request parameters");
                 }
 
-                return res.send({image: manager.getImage(req.params.id)});
+                manager.getImage(req.params.id).then(function(data){
+                    return res.send(data);
+                }).catch(function(e){
+                    return sendError(res, 400, e);
+                });
             }catch (e){
 		        return sendError(res, 400, e);
             }
         });
 
 		server.get(prefix+'/images', function(req, res){
-		   return res.send(manager.getImages());
+            manager.getImages().then(function(data){
+                return res.send(data);
+            }).catch(function(error){
+                return sendError(res, 500, error);
+            });
         });
 
         server.get(prefix+'/status', function(req, res){

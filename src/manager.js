@@ -10,7 +10,9 @@ var collUtils = require(path.join(__dirname, 'utils', 'collections.js'));
 var uuidUtils = require(path.join(__dirname, 'utils', 'uuid.js'));
 let dateUtils = require(path.join(__dirname, 'utils', 'date.js'));
 let Image = require(path.join(__dirname, 'models', 'image'));
+let Chunk = require(path.join(__dirname, 'models', 'chunk'));
 let imageUtils = require(path.join(__dirname, 'utils', 'image.js'));
+let async = require('async');
 
 var Manager = (function () {
     var instance;
@@ -79,10 +81,10 @@ var ManagerLogic = function () {
         fs.mkdirSync(config.imageStorageDirectory);
     }
 
-    this.storeImage = function () {
+    this.storeImage = function (imagesCollection) {
         let me = this;
 
-        return new Promise(function(resolve, reject){
+        return new Promise(function (resolve, reject) {
 
             if (!me.acquisitionData.token) {
                 throw "Image store failed. Invalid token";
@@ -93,51 +95,83 @@ var ManagerLogic = function () {
             }
 
             let imagesArray = [];
-            _.forEach(me.acquisitionData.images, function(item){
+            _.forEach(imagesCollection, function (item) {
                 imagesArray.push(item.image);
             });
 
-            imageUtils.get360ImageThumbnail(imagesArray, 100).then(function(thumbnail){
-                Image.create({
-                    images: imagesArray,
-                    thumbnail: thumbnail
-                }, function(error, data){
-                    if(error){
-                        reject(error);
-                    } else{
-                        resolve();
+            imageUtils.get360ImageThumbnail(imagesArray, 100).then(function (thumbnail) {
+
+                let definitionObject = [];
+
+                async.each(imagesCollection, function (chunk, callback) {
+                    Chunk.create({
+                        index: chunk.index,
+                        image: chunk.image
+                    }, function (error, data) {
+                        if (error) {
+                            callback(error);
+                        } else {
+                            definitionObject.push({
+                                index: data.index,
+                                id: data._id
+                            });
+                            callback();
+                        }
+                    });
+                }, function (err) {
+                    if (err) {
+                        reject(err);
+                        return;
                     }
+
+                    let ids = [];
+
+                    definitionObject = _.sortBy(definitionObject, 'index');
+                    _.forEach(definitionObject, function (item) {
+                        ids.push(item.id);
+                    });
+
+                    Image.create({
+                        thumbnail: thumbnail,
+                        images: ids
+                    }, function (error, result) {
+                        if (error) {
+                            reject(error);
+                        } else {
+                            resolve();
+                        }
+                    });
                 });
-            }, function(error){
+            }, function (error) {
                 reject(error);
             });
         });
     };
 
-    ManagerLogic.prototype.getImage = function(id){
+    ManagerLogic.prototype.getImage = function (id) {
 
-        return new Promise(function(resolve, reject){
-            if(!id){
+        return new Promise(function (resolve, reject) {
+            if (!id) {
                 reject("Image ID was not provided");
                 return;
             }
 
-            Image.findById(id).exec(function(error, result){
-                if(error){
+            Image.findById(id).populate('images').exec(function (error, result) {
+                if (error) {
                     reject(error);
-                }else{
+                } else {
                     resolve(result);
                 }
             });
         });
     };
 
-    ManagerLogic.prototype.getImages = function(){
-        return new Promise(function(resolve, reject){
-            Image.find({}).select('_id thumbnail createdAt').sort('createdAt DESC').exec(function(error, result){
-                if(error){
+    ManagerLogic.prototype.getImages = function () {
+        return new Promise(function (resolve, reject) {
+            Image.find({}).select('_id thumbnail createdAt').sort('createdAt DESC').exec(function (error, result) {
+                if (error) {
                     reject(error);
-                }else{
+                } else {
                     resolve(result);
                 }
             });
@@ -223,7 +257,7 @@ var ManagerLogic = function () {
 
     ManagerLogic.prototype.acquisitionCancel = function (token, force) {
 
-        if(!force) {
+        if (!force) {
             if (!token || this.acquisitionData.token !== token) {
                 throw "Invalid token";
             }
@@ -278,12 +312,12 @@ var ManagerLogic = function () {
 
             try {
 
-                this.storeImage(this.acquisitionData.images).then(function(data){
+                this.storeImage(this.acquisitionData.images).then(function (data) {
                     completed({
                         status: acquisitionStatuses.FINISHED,
                         progress: progress,
                     });
-                }).catch(function(error){
+                }).catch(function (error) {
                     failed(error);
                 });
 

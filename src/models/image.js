@@ -1,11 +1,11 @@
-var mongoose = require('mongoose');
-var path = require('path');
-var config = require(path.join(__dirname, '..', '..', 'config.json'));
+let mongoose = require('mongoose');
+let path = require('path');
+let config = require(path.join(__dirname, '..', '..', 'config.json'));
 
 
-var imageSchema = mongoose.Schema({
+let imageSchema = mongoose.Schema({
     thumbnail: {type: String, required: false},
-    images: {type: [String], required: true},
+    images: [{type: mongoose.Schema.Types.ObjectId, ref: 'Chunk', required: true}],
     createdAt: {type: Date, required: true}
 }, {
     collection: config.db.collection
@@ -19,5 +19,5 @@ imageSchema.pre('validate', function(next){
    next();
 });
 
-var Image = mongoose.model('Image', imageSchema);
+let Image = mongoose.model('Image', imageSchema);
 module.exports = Image;

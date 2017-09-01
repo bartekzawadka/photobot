@@ -1,4 +1,5 @@
 let jimp = require('jimp');
+let im = require('imagemagick');
 
 module.exports = {
     get360ImageThumbnail: function (imageData, thumbnailWidth) {
@@ -27,26 +28,18 @@ module.exports = {
 
                 let buffer = new Buffer(imageToResize, 'base64');
 
-                new jimp(buffer, (err, image)=>{
+                im.resize({
+                    srcData: buffer,
+                    width: thumbnailWidth
+                }, function(err, stdout, stderr){
+                   if(err){
+                       reject(err);
+                       return;
+                   }
 
-                    if(err){
-                        reject(err);
-                        return;
-                    }
-
-                    if(!image){
-                        reject("Invalid image data or unsupported format");
-                        return;
-                    }
-
-                   image.resize(thumbnailWidth, jimp.AUTO).getBase64(image.getMIME(), (e, bu)=>{
-                       if(e){
-                           reject(e);
-                           return;
-                       }
-
-                       resolve(bu);
-                   })
+                   let outBuff = new Buffer(stdout, 'ascii');
+                   let base64 = "data:image/jpeg;base64,"+outBuff.toString('base64');
+                    resolve(base64);
                 });
             } catch (e) {
                 reject(e);

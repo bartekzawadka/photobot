@@ -9,10 +9,9 @@ var sendError = function(res, code, error){
     if(!code)
         code = 500;
 
-    res.writeHead(code, {"Content-Type": "application/json"});
-    return res.end(JSON.stringify({
-        error: String(error)
-    }));
+    res.statusCode = code;
+    res.statusMessage = error;
+    return res.end();
 };
 
 let sendJsonResponse = function(res, data){
@@ -84,6 +83,22 @@ module.exports = {
                 });
             }catch (e){
 		        return sendError(res, 400, e);
+            }
+        });
+
+		server.get(prefix+'/chunk/:id', function(req, res){
+            try {
+                if(!req.params){
+                    return sendError(res, 400, "Invalid request parameters");
+                }
+
+                manager.getChunk(req.params.id).then(function(data){
+                    return res.send(data);
+                }).catch(function(e){
+                    return sendError(res, 400, e);
+                });
+            }catch (e){
+                return sendError(res, 400, e);
             }
         });
 

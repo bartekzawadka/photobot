@@ -5,7 +5,7 @@ let config = require(path.join(__dirname, '..', '..', 'config.json'));
 
 let imageSchema = mongoose.Schema({
     thumbnail: {type: String, required: false},
-    images: [{type: mongoose.Schema.Types.ObjectId, ref: 'Chunk', required: true}],
+    chunks: [{type: mongoose.Schema.Types.ObjectId, ref: 'Chunk', required: true}],
     createdAt: {type: Date, required: true}
 }, {
     collection: config.db.collection

@@ -12,7 +12,7 @@ let dateUtils = require(path.join(__dirname, 'utils', 'date.js'));
 let Image = require(path.join(__dirname, 'models', 'image'));
 let Chunk = require(path.join(__dirname, 'models', 'chunk'));
 let imageUtils = require(path.join(__dirname, 'utils', 'image.js'));
-let async = require('async');
+let promisesUtils = require(path.join(__dirname, 'utils', 'promises.js'));
 
 var Manager = (function () {
     var instance;
@@ -65,7 +65,7 @@ var ManagerLogic = function () {
             numOfImages: (this.configuration.stepAngle && this.configuration.stepAngle > 0)
                 ? Math.round(360 / this.configuration.stepAngle)
                 : 0,
-            images: [],
+            chunks: [],
             token: undefined
         };
     };
@@ -90,7 +90,7 @@ var ManagerLogic = function () {
                 throw "Image store failed. Invalid token";
             }
 
-            if (!me.acquisitionData.images) {
+            if (!me.acquisitionData.chunks) {
                 throw "No data to be stored. Image set is empty";
             }
 
@@ -103,27 +103,24 @@ var ManagerLogic = function () {
 
                 let definitionObject = [];
 
-                async.each(imagesCollection, function (chunk, callback) {
-                    Chunk.create({
-                        index: chunk.index,
-                        image: chunk.image
-                    }, function (error, data) {
-                        if (error) {
-                            callback(error);
-                        } else {
-                            definitionObject.push({
-                                index: data.index,
-                                id: data._id
-                            });
-                            callback();
-                        }
+                promisesUtils.processPromisesArray(imagesCollection, function (chunk) {
+                    return new Promise(function (resolve, reject) {
+                        Chunk.create({
+                            index: chunk.index,
+                            image: chunk.image
+                        }, function (error, data) {
+                            if (error) {
+                                reject(error);
+                            } else {
+                                definitionObject.push({
+                                    index: data.index,
+                                    id: data._id
+                                });
+                                resolve();
+                            }
+                        });
                     });
-                }, function (err) {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-
+                }).then(function () {
                     let ids = [];
 
                     definitionObject = _.sortBy(definitionObject, 'index');
@@ -133,7 +130,7 @@ var ManagerLogic = function () {
 
                     Image.create({
                         thumbnail: thumbnail,
-                        images: ids
+                        chunks: ids
                     }, function (error, result) {
                         if (error) {
                             reject(error);
@@ -141,6 +138,8 @@ var ManagerLogic = function () {
                             resolve();
                         }
                     });
+                }).catch(function (error) {
+                    reject(error);
                 });
             }, function (error) {
                 reject(error);
@@ -150,13 +149,14 @@ var ManagerLogic = function () {
 
     ManagerLogic.prototype.getImage = function (id) {
 
+        //TODO: Refactor to return list of chunks and add getChunk function
         return new Promise(function (resolve, reject) {
             if (!id) {
                 reject("Image ID was not provided");
                 return;
             }
 
-            Image.findById(id).populate('images').exec(function (error, result) {
+            Image.findById(id).exec(function (error, result) {
                 if (error) {
                     reject(error);
                 } else {
@@ -164,6 +164,23 @@ var ManagerLogic = function () {
                 }
             });
         });
+    };
+
+    ManagerLogic.prototype.getChunk = function (id) {
+        return new Promise(function (resolve, reject) {
+            if (!id) {
+                reject("Chunk ID was not provided");
+                return;
+            }
+
+            Chunk.findById(id).exec(function(error, result){
+               if(error){
+                   reject(error);
+               } else{
+                   resolve(result);
+               }
+            });
+        })
     };
 
     ManagerLogic.prototype.getImages = function () {
@@ -283,7 +300,7 @@ var ManagerLogic = function () {
             return;
         }
 
-        this.acquisitionData.images.push({
+        this.acquisitionData.chunks.push({
             index: this.acquisitionData.imageIndex,
             image: image
         });
@@ -312,7 +329,7 @@ var ManagerLogic = function () {
 
             try {
 
-                this.storeImage(this.acquisitionData.images).then(function (data) {
+                this.storeImage(this.acquisitionData.chunks).then(function (data) {
                     completed({
                         status: acquisitionStatuses.FINISHED,
                         progress: progress,

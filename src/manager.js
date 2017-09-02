@@ -135,7 +135,7 @@ var ManagerLogic = function () {
                         if (error) {
                             reject(error);
                         } else {
-                            resolve();
+                            resolve(result._id);
                         }
                     });
                 }).catch(function (error) {
@@ -185,7 +185,9 @@ var ManagerLogic = function () {
 
     ManagerLogic.prototype.getImages = function () {
         return new Promise(function (resolve, reject) {
-            Image.find({}).select('_id thumbnail createdAt').sort('createdAt DESC').exec(function (error, result) {
+            Image.find({}).select('_id thumbnail createdAt').sort({
+                createdAt: -1
+            }).exec(function (error, result) {
                 if (error) {
                     reject(error);
                 } else {
@@ -333,6 +335,7 @@ var ManagerLogic = function () {
                     completed({
                         status: acquisitionStatuses.FINISHED,
                         progress: progress,
+                        id: data
                     });
                 }).catch(function (error) {
                     failed(error);

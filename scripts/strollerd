@@ -1,0 +1,46 @@
+#! /bin/bash
+#
+# Author: Bartosz Zawadka, 2017
+#
+# Contact: kontakt@bartoszzawadka.pl
+#
+# /etc/init.d/strollerd
+#
+### BEGIN INIT INFO
+# Provides: strollerd
+# Required-Start: $remote_fs $syslog $network
+# Required-Stop: $remote_fs $syslog $network
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Description: Stroller web-service daemon
+### END INIT INFO
+
+PIDFILE=/var/run/strollerd.pid
+USER=root
+CHUID=root
+STARTAS=/usr/bin/node
+ARGS=/home/pi/stroller/src/index.js
+RTIME=10
+
+case "$1" in
+    start)
+        echo "Starting Daemon"
+        sudo start-stop-daemon --start --pidfile $PIDFILE --make-pidfile --user $USER --chuid $CHUID --background --startas $STARTAS -- $ARGS
+        ;;
+    stop)
+        echo "Stopping Daemon"
+        sudo start-stop-daemon --stop --pidfile $PIDFILE --retry $RTIME --signal TERM
+        ;;
+    restart)
+        echo "Restarting Daemon"
+        $0 stop
+        $0 start
+        ;;
+    *)
+        echo "Invalid command. Usage: /etc/init.d/strollerd {start|stop|restart}"
+        exit 1
+        ;;
+        
+esac
+
+exit 0

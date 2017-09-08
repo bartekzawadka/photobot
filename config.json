@@ -4,11 +4,14 @@
   },
   "GPIO": {
     "step": 26,
-    "direction": 19
+    "direction": 19,
+    "M1": 5,
+    "M2": 6,
+    "M3": 13
   },
   "motor": {
     "maxSteps": 200,
-    "rotationInterval": 2
+    "rotationInterval": 30
   },
   "defaultCamera": "strollerClient",
   "imageStorageDirectory": "/home/pi/stroller/data",

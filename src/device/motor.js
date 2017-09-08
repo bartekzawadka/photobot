@@ -29,6 +29,10 @@ var Motor = function() {
     this.directionPort = new Gpio(config.GPIO.direction, {mode: Gpio.OUTPUT});
     this.stepPort = new Gpio(config.GPIO.step, {mode: Gpio.OUTPUT});
 
+    this.m1Port = new Gpio(config.GPIO.M1, {mode: Gpio.OUTPUT});
+    this.m2Port = new Gpio(config.GPIO.M2, {mode: Gpio.OUTPUT});
+    this.m3Port = new Gpio(config.GPIO.M3, {mode: Gpio.OUTPUT});
+
     var directions = {
         CLOCKWISE: "clockwise",
         COUNTER_CLOCKWISE: "counter-clockwise"
@@ -46,7 +50,7 @@ var Motor = function() {
     }
 
     function convertAngleToSteps(angle){
-        return Math.round(angle*config.motor.maxSteps/360);
+        return Math.round(angle*config.motor.maxSteps*8/360);
     }
 
     Motor.prototype.getDirections = function(){
@@ -68,19 +72,29 @@ var Motor = function() {
         }
 
         this.directionPort.digitalWrite(getDirection(direction));
+        this.m1Port.digitalWrite(1);
+        this.m2Port.digitalWrite(1);
+        this.m3Port.digitalWrite(0);
 
-        var counter = 1;
+        let counter = 1;
 
-        while (counter<=steps){
-            this.stepPort.digitalWrite(1);
-            var inter = setInterval(function(){
-                this.stepPort.digitalWrite(0);
-            }, config.motor.rotationInterval);
-            clearInterval(inter);
-            counter+=1;
+        let me = this;
+
+        function loop(){
+            if(counter<=steps){
+                me.stepPort.digitalWrite(1);
+                let inter = setInterval(function(){
+                    me.stepPort.digitalWrite(0);
+                    counter+=1;
+                    clearInterval(inter);
+                    loop();
+                }, config.motor.rotationInterval);
+            }else{
+                callback();
+            }
         }
 
-        callback();
+        loop();
     };
 
     Motor.prototype.getMinAngle = function(){

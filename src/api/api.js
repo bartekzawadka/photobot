@@ -143,14 +143,21 @@ module.exports = {
            return res.send();
         });
 
-        server.get(prefix+'/cameras', function(req, res){
-            var cameras = manager.getCameras();
-            var data = {
-                cameras: cameras
-            };
+        server.get(prefix+'/image/delete/:id', function(req, res){
+            try {
+                if(!req.params){
+                    return sendError(res, 400, "Invalid request parameters");
+                }
 
-            return res.send(data);
-        });
+                manager.deleteImage(req.params.id).then(function(){
+                    return res.send();
+                }).catch(function(e){
+                    return sendError(res, 500, e);
+                });
+            }catch (e){
+                return sendError(e, 500, e);
+            }
+        })
 
     }
 };

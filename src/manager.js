@@ -147,9 +147,25 @@ var ManagerLogic = function () {
         });
     };
 
+    ManagerLogic.prototype.deleteImage = function(id){
+      return new Promise(function(resolve, reject){
+         if(!id){
+             reject("Image ID was not provided");
+             return;
+         }
+
+         Image.findById(id).remove(function(error, result){
+            if(error){
+                reject(error);
+            } else{
+                resolve();
+            }
+         });
+      });
+    };
+
     ManagerLogic.prototype.getImage = function (id) {
 
-        //TODO: Refactor to return list of chunks and add getChunk function
         return new Promise(function (resolve, reject) {
             if (!id) {
                 reject("Image ID was not provided");

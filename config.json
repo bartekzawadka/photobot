@@ -21,5 +21,6 @@
     "password": "",
     "database": "stroller",
     "host": "localhost"
-  }
+  },
+  "thumbnailWidth": 200
 }

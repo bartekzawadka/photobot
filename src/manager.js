@@ -99,7 +99,7 @@ var ManagerLogic = function () {
                 imagesArray.push(item.image);
             });
 
-            imageUtils.get360ImageThumbnail(imagesArray, 100).then(function (thumbnail) {
+            imageUtils.get360ImageThumbnail(imagesArray, config.thumbnailWidth).then(function (thumbnail) {
 
                 let definitionObject = [];
 

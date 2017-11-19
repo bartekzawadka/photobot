@@ -4,6 +4,7 @@
 var path = require('path');
 var Manager = require(path.join(__dirname, '..', 'manager.js'));
 var manager = Manager.getInstance();
+var promiseUtils = require(path.join(__dirname, '..', 'utils', 'promises.js'));
 
 var sendError = function(res, code, error){
     if(!code)
@@ -155,9 +156,51 @@ module.exports = {
                     return sendError(res, 500, e);
                 });
             }catch (e){
-                return sendError(e, 500, e);
+                return sendError(res, 500, e);
             }
-        })
+        });
+
+        server.get(prefix+'/image/download/:id/:fileName', function(req, res){
+           try{
+               if(!req.params || !req.params.id || !req.params.fileName){
+                   return sendError(res, 400, "Invalid request parameters");
+               }
+
+               manager.getImage(req.params.id).then(function(data){
+
+                   let record = {
+                     id: data._id,
+                     thumbnail: data.thumbnail,
+                     createdAt: data.createdAt
+                   };
+
+                   let chunks = [];
+
+                   promiseUtils.processPromisesArrayAction(data.chunks, manager.getChunk, function(data){
+                               chunks.push({
+                                   index: data.index,
+                                   image: data.image
+                               });
+                   }).then(function(){
+                       record.chunks = chunks;
+
+                       let buff = new Buffer.from(JSON.stringify(record));
+
+                       res.setHeader('Content-Disposition', 'attachment;filename=' + req.params.fileName+'.json');
+                       res.setHeader('Content-Type', 'application/json');
+                       res.setHeader('Content-Length', buff.length);
+
+                       res.end(buff);
+                   }).catch(function(e){
+                       sendError(res, 400, e);
+                   });
+               }).catch(function(e){
+                   return sendError(res, 400, e);
+               });
+           } catch (e) {
+               return sendError(res, 500, e);
+           }
+        });
 
     }
 };

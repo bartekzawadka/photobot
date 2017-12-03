@@ -27,9 +27,10 @@ module.exports = {
 
         server.get(prefix+'/capture', function(req, res, next){
             try{
-                let token = manager.acquisitionInit();
-                return res.send({
-                    token: token
+                manager.acquisitionInit().then(function(data){
+                    return res.send(data);
+                }, function(error){
+                    return sendError(res, 400, error);
                 });
             }catch (e){
                 return sendError(res, 403, e);
@@ -118,6 +119,11 @@ module.exports = {
         server.get(prefix+'/directions', function(req, res){
            return res.send(manager.getDirections());
         });
+
+        // TODO: Implement
+        // server.get(prefix+'/cameras', function(req, res){
+        //
+        // });
 
         server.post(prefix+'/config', function(req, res, next){
 

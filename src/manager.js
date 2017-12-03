@@ -8,11 +8,11 @@ var config = require(path.join(__dirname, '..', 'config.json'));
 var motorDriver = require(path.join(__dirname, 'device', 'motor.js'));
 var collUtils = require(path.join(__dirname, 'utils', 'collections.js'));
 var uuidUtils = require(path.join(__dirname, 'utils', 'uuid.js'));
-let dateUtils = require(path.join(__dirname, 'utils', 'date.js'));
 let Image = require(path.join(__dirname, 'models', 'image'));
 let Chunk = require(path.join(__dirname, 'models', 'chunk'));
 let imageUtils = require(path.join(__dirname, 'utils', 'image.js'));
 let promisesUtils = require(path.join(__dirname, 'utils', 'promises.js'));
+let CameraController = require(path.join(__dirname, 'device', 'cameraController.js'));
 
 var Manager = (function () {
     var instance;
@@ -50,12 +50,13 @@ var ManagerLogic = function () {
 
     this.mDriver = motorDriver.getInstance();
     this.currentStatus = statuses.READY;
+    this.cameraController = new CameraController();
 
     this.getDefaultConfiguration = function () {
         return {
             stepAngle: this.mDriver.getMinAngle(),
             direction: 'counter-clockwise',
-            activeCamera: config.defaultCamera
+            camera: ''
         }
     };
 
@@ -218,28 +219,31 @@ var ManagerLogic = function () {
     };
 
     ManagerLogic.prototype.getCameras = function () {
-        var rootDir = path.join(__dirname, 'device', 'camera');
 
-        var dirs = fs.readdirSync(rootDir)
-            .filter(file => fs.lstatSync(path.join(rootDir, file)).isDirectory());
+        return this.cameraController.getCameras();
 
-        var devices = [];
-
-        _.forEach(dirs, function (dir) {
-            try {
-                var obj = JSON.parse(fs.readFileSync(path.join(rootDir, dir, 'config.json'), 'utf-8'));
-                if (obj.isActive) {
-                    devices.push({
-                        name: obj.name,
-                        description: obj.description
-                    })
-                }
-            }
-            finally {
-            }
-        });
-
-        return devices;
+        // var rootDir = path.join(__dirname, 'device', 'camera');
+        //
+        // var dirs = fs.readdirSync(rootDir)
+        //     .filter(file => fs.lstatSync(path.join(rootDir, file)).isDirectory());
+        //
+        // var devices = [];
+        //
+        // _.forEach(dirs, function (dir) {
+        //     try {
+        //         var obj = JSON.parse(fs.readFileSync(path.join(rootDir, dir, 'config.json'), 'utf-8'));
+        //         if (obj.isActive) {
+        //             devices.push({
+        //                 name: obj.name,
+        //                 description: obj.description
+        //             })
+        //         }
+        //     }
+        //     finally {
+        //     }
+        // });
+        //
+        // return devices;
     };
 
     ManagerLogic.prototype.setConfig = function (configuration) {
@@ -260,13 +264,18 @@ var ManagerLogic = function () {
                 throw  "Unknown direction '" + configuration.direction + "'";
             }
         }
-        if (configuration.activeCamera) {
-            var cameras = this.getCameras();
 
-            if (!collUtils.checkIfValueExists(cameras, "name", configuration.activeCamera)) {
-                throw "Camera '" + configuration.activeCamera + "' was not found";
-            }
+        if (configuration.camera) {
+            // TODO: Implement
         }
+
+        // if (configuration.camera) {
+        //     var cameras = this.getCameras();
+        //
+        //     if (!collUtils.checkIfValueExists(cameras, "name", configuration.activeCamera)) {
+        //         throw "Camera '" + configuration.activeCamera + "' was not found";
+        //     }
+        // }
 
         this.configuration = configuration;
     };
@@ -368,16 +377,35 @@ var ManagerLogic = function () {
     };
 
     ManagerLogic.prototype.acquisitionInit = function () {
-        let status = this.getStatus();
-        if (status === statuses.BUSY) {
-            throw "Device is busy";
-        }
+        let me = this;
+        return new Promise(function (resolve, reject) {
+            let status = me.getStatus();
+            if (status === statuses.BUSY) {
+                reject("Device is busy");
+                return;
+            }
 
-        this.currentStatus = statuses.BUSY;
+            me.currentStatus = statuses.BUSY;
 
-        this.initializeAcquisitionData();
-        this.acquisitionData.token = uuidUtils.generateGuid();
-        return this.acquisitionData.token;
+            me.initializeAcquisitionData();
+            me.acquisitionData.token = uuidUtils.generateGuid();
+
+            if (me.configuration.camera) {
+                me.cameraController.capture(me.configuration.camera).then(function(image){
+                    me.appendImageAndRotate(me.acquisitionData.token, image, function(result){
+                        result.token = me.acquisitionData.token;
+                        resolve(result);
+                    }, function(error){
+                        reject(error);
+                    })
+                }, function(error){
+                    reject(error);
+                });
+            }
+            else {
+                resolve(me.acquisitionData.token);
+            }
+        });
     };
 };
 

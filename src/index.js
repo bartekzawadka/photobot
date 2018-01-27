@@ -1,16 +1,16 @@
 /**
  * Created by barte_000 on 2017-07-04.
  */
-var restify = require('restify');
-var path = require('path');
-var config = require(path.join(__dirname, '..', 'config.json'));
-var Manager = require(path.join(__dirname, 'manager.js'));
-var mongoose = require('mongoose');
+let restify = require('restify');
+let path = require('path');
+let config = require(path.join(__dirname, '..', 'config.json'));
+let Manager = require(path.join(__dirname, 'manager.js'));
+let mongoose = require('mongoose');
 
 const restifyBodyParser = require('restify-plugins').bodyParser;
 
 
-var server = restify.createServer({
+let server = restify.createServer({
     name: 'Stroller'
 });
 
@@ -25,11 +25,9 @@ server.use(function crossOrigin(req, res, next){
     return next();
 });
 
-var io = require('socket.io')(server.server);
+Manager.initialize();
 
-Manager.initialize(io);
-
-var api = require(path.join(__dirname, 'api', 'api.js'));
+let api = require(path.join(__dirname, 'api', 'api.js'));
 api.set(server);
 
 mongoose.Promise = global.Promise;

@@ -1,13 +1,13 @@
 /**
  * Created by barte_000 on 2017-07-05.
  */
-var path = require('path');
-var config = require(path.join(__dirname, '..', '..', 'config.json'));
-var Gpio = require('pigpio').Gpio;
+let path = require('path');
+let config = require(path.join(__dirname, '..', '..', 'config.json'));
+let Gpio = require('pigpio').Gpio;
 
 
-var MotorDriver = (function(){
-    var instance;
+let MotorDriver = (function(){
+    let instance;
 
     function createInstance(){
         return new Motor();
@@ -24,7 +24,7 @@ var MotorDriver = (function(){
 })();
 
 
-var Motor = function() {
+let Motor = function() {
 
     this.directionPort = new Gpio(config.GPIO.direction, {mode: Gpio.OUTPUT});
     this.stepPort = new Gpio(config.GPIO.step, {mode: Gpio.OUTPUT});
@@ -33,7 +33,7 @@ var Motor = function() {
     this.m2Port = new Gpio(config.GPIO.M2, {mode: Gpio.OUTPUT});
     this.m3Port = new Gpio(config.GPIO.M3, {mode: Gpio.OUTPUT});
 
-    var directions = {
+    let directions = {
         CLOCKWISE: "clockwise",
         COUNTER_CLOCKWISE: "counter-clockwise"
     };
@@ -64,7 +64,7 @@ var Motor = function() {
             return;
         }
 
-        var steps = convertAngleToSteps(angle);
+        let steps = convertAngleToSteps(angle);
         if(!steps || steps < 0)
             steps = 0;
         else if(steps > config.motor.maxSteps){

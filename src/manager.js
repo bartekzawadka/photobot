@@ -1,21 +1,21 @@
 /**
  * Created by barte_000 on 2017-07-08.
  */
-var fs = require('fs');
-var _ = require('lodash');
-var path = require('path');
-var config = require(path.join(__dirname, '..', 'config.json'));
-var motorDriver = require(path.join(__dirname, 'device', 'motor.js'));
-var collUtils = require(path.join(__dirname, 'utils', 'collections.js'));
-var uuidUtils = require(path.join(__dirname, 'utils', 'uuid.js'));
+let fs = require('fs');
+let _ = require('lodash');
+let path = require('path');
+let config = require(path.join(__dirname, '..', 'config.json'));
+let motorDriver = require(path.join(__dirname, 'device', 'motor.js'));
+let collUtils = require(path.join(__dirname, 'utils', 'collections.js'));
+let uuidUtils = require(path.join(__dirname, 'utils', 'uuid.js'));
 let Image = require(path.join(__dirname, 'models', 'image'));
 let Chunk = require(path.join(__dirname, 'models', 'chunk'));
 let imageUtils = require(path.join(__dirname, 'utils', 'image.js'));
 let promisesUtils = require(path.join(__dirname, 'utils', 'promises.js'));
 let CameraController = require(path.join(__dirname, 'device', 'cameraController.js'));
 
-var Manager = (function () {
-    var instance;
+let Manager = (function () {
+    let instance;
 
     function createInstance() {
         return new ManagerLogic();
@@ -36,7 +36,7 @@ var Manager = (function () {
     }
 })();
 
-var ManagerLogic = function () {
+let ManagerLogic = function () {
 
     let statuses = {
         READY: "ready",
@@ -49,15 +49,21 @@ var ManagerLogic = function () {
     };
 
     this.mDriver = motorDriver.getInstance();
-    this.currentStatus = statuses.READY;
+    this.currentStatus = statuses.BUSY;
     this.cameraController = new CameraController();
 
     this.getDefaultConfiguration = function () {
-        return {
-            stepAngle: this.mDriver.getMinAngle(),
-            direction: 'counter-clockwise',
-            camera: ''
-        }
+        let me = this;
+        return new Promise(resolve => {
+            this.cameraController.getCameras().then(function (cameras) {
+                resolve({
+                    stepAngle: me.mDriver.getMinAngle(),
+                    direction: 'counter-clockwise',
+                    cameras: cameras,
+                    camera: ''
+                });
+            })
+        });
     };
 
     this.initializeAcquisitionData = function () {
@@ -71,8 +77,13 @@ var ManagerLogic = function () {
         };
     };
 
-    this.configuration = this.getDefaultConfiguration();
-    this.initializeAcquisitionData();
+    let me = this;
+
+    this.getDefaultConfiguration().then(function (conf) {
+        me.configuration = conf;
+        me.initializeAcquisitionData();
+        me.currentStatus = statuses.READY;
+    });
 
     if (!config.imageStorageDirectory) {
         throw "Stroller misconfiguration. Storage directory was not set";
@@ -148,21 +159,21 @@ var ManagerLogic = function () {
         });
     };
 
-    ManagerLogic.prototype.deleteImage = function(id){
-      return new Promise(function(resolve, reject){
-         if(!id){
-             reject("Image ID was not provided");
-             return;
-         }
-
-         Image.findById(id).remove(function(error, result){
-            if(error){
-                reject(error);
-            } else{
-                resolve();
+    ManagerLogic.prototype.deleteImage = function (id) {
+        return new Promise(function (resolve, reject) {
+            if (!id) {
+                reject("Image ID was not provided");
+                return;
             }
-         });
-      });
+
+            Image.findById(id).remove(function (error, result) {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve();
+                }
+            });
+        });
     };
 
     ManagerLogic.prototype.getImage = function (id) {
@@ -190,12 +201,12 @@ var ManagerLogic = function () {
                 return;
             }
 
-            Chunk.findById(id).exec(function(error, result){
-               if(error){
-                   reject(error);
-               } else{
-                   resolve(result);
-               }
+            Chunk.findById(id).exec(function (error, result) {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
             });
         })
     };
@@ -218,34 +229,6 @@ var ManagerLogic = function () {
         return this.currentStatus;
     };
 
-    ManagerLogic.prototype.getCameras = function () {
-
-        return this.cameraController.getCameras();
-
-        // var rootDir = path.join(__dirname, 'device', 'camera');
-        //
-        // var dirs = fs.readdirSync(rootDir)
-        //     .filter(file => fs.lstatSync(path.join(rootDir, file)).isDirectory());
-        //
-        // var devices = [];
-        //
-        // _.forEach(dirs, function (dir) {
-        //     try {
-        //         var obj = JSON.parse(fs.readFileSync(path.join(rootDir, dir, 'config.json'), 'utf-8'));
-        //         if (obj.isActive) {
-        //             devices.push({
-        //                 name: obj.name,
-        //                 description: obj.description
-        //             })
-        //         }
-        //     }
-        //     finally {
-        //     }
-        // });
-        //
-        // return devices;
-    };
-
     ManagerLogic.prototype.setConfig = function (configuration) {
 
         if (!configuration || _.isEmpty(configuration)) {
@@ -258,30 +241,36 @@ var ManagerLogic = function () {
             }
         }
         if (configuration.direction) {
-            var directions = this.mDriver.getDirections();
+            let directions = this.mDriver.getDirections();
 
             if (!collUtils.checkIfHasValue(directions, configuration.direction)) {
                 throw  "Unknown direction '" + configuration.direction + "'";
             }
         }
 
-        if (configuration.camera) {
-            // TODO: Implement
+        configuration.cameras = me.configuration.cameras;
+        if (configuration.camera && this.configuration.cameras) {
+            if (!_.includes(this.configuration.cameras, configuration.camera)) {
+                throw "Invalid camera name. Camera '" + configuration.camera + "' is not available";
+            }
         }
-
-        // if (configuration.camera) {
-        //     var cameras = this.getCameras();
-        //
-        //     if (!collUtils.checkIfValueExists(cameras, "name", configuration.activeCamera)) {
-        //         throw "Camera '" + configuration.activeCamera + "' was not found";
-        //     }
-        // }
 
         this.configuration = configuration;
     };
 
     ManagerLogic.prototype.getConfig = function () {
-        return this.configuration;
+        let me = this;
+        return new Promise((resolve) => {
+            me.cameraController.getCameras().then(function (cameras) {
+                if (!cameras || cameras.length === 0) {
+                    me.configuration.cameras = [];
+                    me.configuration.camera = '';
+                } else if (me.configuration.camera && !_.includes(cameras, me.configuration.camera)) {
+                    me.configuration.camera = '';
+                }
+                resolve(me.configuration);
+            })
+        });
     };
 
     ManagerLogic.prototype.getMinStepAngle = function () {
@@ -289,7 +278,13 @@ var ManagerLogic = function () {
     };
 
     ManagerLogic.prototype.setDefaultConfig = function () {
-        this.configuration = this.getDefaultConfiguration();
+        let me = this;
+        return new Promise(resolve => {
+            me.getDefaultConfiguration().then(function (conf) {
+                me.configuration = conf;
+                resolve();
+            });
+        });
     };
 
     ManagerLogic.prototype.getDirections = function () {
@@ -311,42 +306,58 @@ var ManagerLogic = function () {
         this.currentStatus = statuses.READY;
     };
 
-    ManagerLogic.prototype.appendImageAndRotate = function (token, image, completed, failed) {
-        if (this.getStatus() !== statuses.BUSY) {
-            failed("Device is not capturing. Unexpected data");
-            return;
-        }
+    ManagerLogic.prototype.appendImageAndRotate = function (token, image) {
+        let me = this;
 
-        if (!token || this.acquisitionData.token !== token) {
-            failed("Invalid token");
-            return;
-        }
+        return new Promise((resolve, reject) => {
 
-        if (!image || image.length <= 0) {
-            failed("Empty image data");
-            return;
-        }
+            if (me.getStatus() !== statuses.BUSY) {
+                reject("Device is not capturing. Unexpected data");
+                return;
+            }
 
-        this.acquisitionData.chunks.push({
-            index: this.acquisitionData.imageIndex,
+            if (!token || me.acquisitionData.token !== token) {
+                reject("Invalid token");
+                return;
+            }
+
+            if ((!me.configuration.camera || me.configuration.camera === '') && (!image || image.length <= 0)) {
+                reject("Empty image data");
+                return;
+            }
+
+            if(me.configuration.camera){
+                me.cameraController.capture(me.configuration.camera).then(function (image) {
+                    pushAndRotate(image, resolve, reject);
+                }, function (error) {
+                    reject(error);
+                });
+            } else {
+                pushAndRotate(image, resolve, reject);
+            }
+        });
+    };
+
+    function pushAndRotate(image, resolve, reject){
+        me.acquisitionData.chunks.push({
+            index: me.acquisitionData.imageIndex,
             image: image
         });
 
-        this.acquisitionData.imageIndex = this.acquisitionData.imageIndex + 1;
+        me.acquisitionData.imageIndex = me.acquisitionData.imageIndex + 1;
 
-        let progress = Math.round((this.acquisitionData.imageIndex) * 100 / this.acquisitionData.numOfImages);
-        let me = this;
+        let progress = Math.round((me.acquisitionData.imageIndex) * 100 / me.acquisitionData.numOfImages);
 
-        if (this.acquisitionData.imageIndex < this.acquisitionData.numOfImages) {
-            this.mDriver.rotate(this.configuration.stepAngle, this.configuration.direction, function (e) {
+        if (me.acquisitionData.imageIndex < me.acquisitionData.numOfImages) {
+            me.mDriver.rotate(this.configuration.stepAngle, me.configuration.direction, function (e) {
                 if (e) {
                     me.initializeAcquisitionData();
                     me.currentStatus = statuses.READY;
-                    failed("Unable to rotate platform. Capturing failed: " + e);
+                    reject("Unable to rotate platform. Capturing failed: " + e);
                     return;
                 }
 
-                completed({
+                resolve({
                     status: acquisitionStatuses.TAKE_PHOTO,
                     progress: progress
                 });
@@ -356,25 +367,24 @@ var ManagerLogic = function () {
 
             try {
 
-                this.storeImage(this.acquisitionData.chunks).then(function (data) {
-                    completed({
+                me.storeImage(me.acquisitionData.chunks).then(function (data) {
+                    resolve({
                         status: acquisitionStatuses.FINISHED,
                         progress: progress,
                         id: data
                     });
                 }).catch(function (error) {
-                    failed(error);
+                    reject(error);
                 });
 
             } catch (e) {
-                failed(e);
+                reject(e);
             }
 
             me.initializeAcquisitionData();
             me.currentStatus = statuses.READY;
         }
-
-    };
+    }
 
     ManagerLogic.prototype.acquisitionInit = function () {
         let me = this;
@@ -391,14 +401,15 @@ var ManagerLogic = function () {
             me.acquisitionData.token = uuidUtils.generateGuid();
 
             if (me.configuration.camera) {
-                me.cameraController.capture(me.configuration.camera).then(function(image){
-                    me.appendImageAndRotate(me.acquisitionData.token, image, function(result){
+
+                me.cameraController.capture(me.configuration.camera).then(function (image) {
+                    me.appendImageAndRotate(me.acquisitionData.token, image).then(function (result) {
                         result.token = me.acquisitionData.token;
                         resolve(result);
-                    }, function(error){
+                    }, function (error) {
                         reject(error);
-                    })
-                }, function(error){
+                    });
+                }, function (error) {
                     reject(error);
                 });
             }

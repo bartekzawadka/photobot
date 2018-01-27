@@ -56,7 +56,7 @@ module.exports = {
             }
 
             try{
-                manager.appendImageAndRotate(req.body.token, req.body.image, function(data){
+                manager.appendImageAndRotate(req.body.token, req.body.image).then(function(data){
                     return sendJsonResponse(res, data);
                 }, function(error){
                     return sendError(res, 400, error);
@@ -141,13 +141,15 @@ module.exports = {
         });
 
         server.get(prefix+'/config', function(req, res){
-             var config = manager.getConfig();
-             return sendJsonResponse(res, config);
+            manager.getConfig().then(function(config){
+                return sendJsonResponse(res, config);
+            });
         });
 
         server.post(prefix+'/defaultConfig', function(req, res){
-           manager.setDefaultConfig();
-           return res.send();
+           manager.setDefaultConfig().then(function(){
+               return res.send();
+           });
         });
 
         server.get(prefix+'/image/delete/:id', function(req, res){

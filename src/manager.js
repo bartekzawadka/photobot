@@ -12,6 +12,7 @@ let Image = require(path.join(__dirname, 'models', 'image'));
 let Chunk = require(path.join(__dirname, 'models', 'chunk'));
 let imageUtils = require(path.join(__dirname, 'utils', 'image.js'));
 let promisesUtils = require(path.join(__dirname, 'utils', 'promises.js'));
+let fsUtils = require(path.join(__dirname, 'utils', 'fs.js'));
 let CameraController = require(path.join(__dirname, 'device', 'cameraController.js'));
 
 let Manager = (function () {
@@ -75,6 +76,10 @@ let ManagerLogic = function () {
             chunks: [],
             token: undefined
         };
+
+        if (fs.existsSync(config.imageStorageDirectory)) {
+            fsUtils.clearDirectory(config.imageStorageDirectory);
+        }
     };
 
     let me = this;
@@ -93,7 +98,7 @@ let ManagerLogic = function () {
         fs.mkdirSync(config.imageStorageDirectory);
     }
 
-    this.storeImage = function (imagesCollection) {
+    me.storeImage = function (imagesCollection) {
         let me = this;
 
         return new Promise(function (resolve, reject) {
@@ -117,9 +122,12 @@ let ManagerLogic = function () {
 
                 promisesUtils.processPromisesArray(imagesCollection, function (chunk) {
                     return new Promise(function (resolve, reject) {
+
+                        let imageData = imageUtils.getFileAsBase64(chunk.image);
+
                         Chunk.create({
                             index: chunk.index,
-                            image: chunk.image
+                            image: imageData
                         }, function (error, data) {
                             if (error) {
                                 reject(error);
@@ -260,16 +268,21 @@ let ManagerLogic = function () {
 
     ManagerLogic.prototype.getConfig = function () {
         let me = this;
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             me.cameraController.getCameras().then(function (cameras) {
                 if (!cameras || cameras.length === 0) {
                     me.configuration.cameras = [];
                     me.configuration.camera = '';
+                    resolve(me.configuration);
+                    return;
                 } else if (me.configuration.camera && !_.includes(cameras, me.configuration.camera)) {
                     me.configuration.camera = '';
                 }
+                me.configuration.cameras = cameras;
                 resolve(me.configuration);
-            })
+            }, function (error) {
+                reject(error);
+            });
         });
     };
 
@@ -306,7 +319,7 @@ let ManagerLogic = function () {
         this.currentStatus = statuses.READY;
     };
 
-    ManagerLogic.prototype.appendImageAndRotate = function (token, image) {
+    ManagerLogic.prototype.appendImageAndRotate = function (token) {
         let me = this;
 
         return new Promise((resolve, reject) => {
@@ -321,27 +334,23 @@ let ManagerLogic = function () {
                 return;
             }
 
-            if ((!me.configuration.camera || me.configuration.camera === '') && (!image || image.length <= 0)) {
+            if ((!me.configuration.camera || me.configuration.camera === '')) {
                 reject("Empty image data");
                 return;
             }
 
-            if(me.configuration.camera){
-                me.cameraController.capture(me.configuration.camera).then(function (image) {
-                    pushAndRotate(image, resolve, reject);
-                }, function (error) {
-                    reject(error);
-                });
-            } else {
-                pushAndRotate(image, resolve, reject);
-            }
+            me.cameraController.capture(me.configuration.camera, me.acquisitionData.imageIndex).then(function () {
+                pushAndRotate(resolve, reject);
+            }, function (error) {
+                reject(error);
+            });
         });
     };
 
-    function pushAndRotate(image, resolve, reject){
+    function pushAndRotate(resolve, reject) {
         me.acquisitionData.chunks.push({
             index: me.acquisitionData.imageIndex,
-            image: image
+            image: path.join(config.imageStorageDirectory, 'image_' + me.acquisitionData.imageIndex + '.jpg')
         });
 
         me.acquisitionData.imageIndex = me.acquisitionData.imageIndex + 1;
@@ -349,7 +358,7 @@ let ManagerLogic = function () {
         let progress = Math.round((me.acquisitionData.imageIndex) * 100 / me.acquisitionData.numOfImages);
 
         if (me.acquisitionData.imageIndex < me.acquisitionData.numOfImages) {
-            me.mDriver.rotate(this.configuration.stepAngle, me.configuration.direction, function (e) {
+            me.mDriver.rotate(me.configuration.stepAngle, me.configuration.direction, function (e) {
                 if (e) {
                     me.initializeAcquisitionData();
                     me.currentStatus = statuses.READY;
@@ -373,16 +382,19 @@ let ManagerLogic = function () {
                         progress: progress,
                         id: data
                     });
+                    me.initializeAcquisitionData();
+                    me.currentStatus = statuses.READY;
                 }).catch(function (error) {
                     reject(error);
+                    me.initializeAcquisitionData();
+                    me.currentStatus = statuses.READY;
                 });
 
             } catch (e) {
                 reject(e);
+                me.initializeAcquisitionData();
+                me.currentStatus = statuses.READY;
             }
-
-            me.initializeAcquisitionData();
-            me.currentStatus = statuses.READY;
         }
     }
 
@@ -401,14 +413,9 @@ let ManagerLogic = function () {
             me.acquisitionData.token = uuidUtils.generateGuid();
 
             if (me.configuration.camera) {
-
-                me.cameraController.capture(me.configuration.camera).then(function (image) {
-                    me.appendImageAndRotate(me.acquisitionData.token, image).then(function (result) {
-                        result.token = me.acquisitionData.token;
-                        resolve(result);
-                    }, function (error) {
-                        reject(error);
-                    });
+                me.appendImageAndRotate(me.acquisitionData.token).then(function (result) {
+                    result.token = me.acquisitionData.token;
+                    resolve(result);
                 }, function (error) {
                     reject(error);
                 });

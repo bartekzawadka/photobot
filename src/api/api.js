@@ -10,6 +10,8 @@ var sendError = function(res, code, error){
     if(!code)
         code = 500;
 
+    console.log(error);
+
     res.statusCode = code;
     res.statusMessage = error;
     return res.end();
@@ -143,6 +145,8 @@ module.exports = {
         server.get(prefix+'/config', function(req, res){
             manager.getConfig().then(function(config){
                 return sendJsonResponse(res, config);
+            }, function(err){
+                return sendError(res, 500, err);
             });
         });
 

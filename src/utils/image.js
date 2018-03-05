@@ -1,5 +1,10 @@
-let jimp = require('jimp');
 let im = require('imagemagick');
+let fs = require('fs');
+
+function getFileAsBase64(filePath){
+    let file = fs.readFileSync(filePath);
+    return "data:image/jpeg;base64,"+new Buffer(file).toString('base64');
+}
 
 module.exports = {
     get360ImageThumbnail: function (imageData, thumbnailWidth) {
@@ -17,7 +22,7 @@ module.exports = {
                 imageIndex = 0;
             }
 
-            let imageToResize = imageData[imageIndex].replace("data:image/jpeg;base64,", "");
+            let imageToResize = getFileAsBase64(imageData[imageIndex]).replace("data:image/jpeg;base64,", "");
 
             if(!imageToResize || imageToResize.length === 0){
                 reject("Image data empty");
@@ -31,7 +36,7 @@ module.exports = {
                 im.resize({
                     srcData: buffer,
                     width: thumbnailWidth
-                }, function(err, stdout, stderr){
+                }, function(err, stdout){
                    if(err){
                        reject(err);
                        return;
@@ -45,5 +50,6 @@ module.exports = {
                 reject(e);
             }
         });
-    }
+    },
+    getFileAsBase64: getFileAsBase64
 };

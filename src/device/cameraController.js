@@ -1,31 +1,41 @@
 let fs = require('fs');
 let _ = require('lodash');
 let path = require('path');
-let gphoto2 = require('gphoto2');
+let config = require(path.join(__dirname, '..', '..', 'config.json'));
 let childProcess = require('child_process');
-
-let Gphoto = new gphoto2.GPhoto2();
 
 let CameraController = function () {
 
     CameraController.prototype.getCameras = function () {
-        return new Promise(function (resolve) {
-            Gphoto.list(function (list) {
-                if (!list || list.length === 0) {
+        return new Promise(function (resolve, reject) {
+            childProcess.exec('gphoto2 --auto-detect', function (err, out) {
+                if (err) {
+                    reject(err);
+                    console.log(err);
+                    return;
+                }
+
+                let partials = out.split(/\r?\n/);
+
+                if (!partials || partials.length <= 2) {
                     resolve([]);
+                    return;
                 }
 
-                let result = [];
-                for (let k = 0; k < list.length; k++) {
-                    result.push(list[k].model);
+                const portIndex = partials[0].indexOf('Port');
+
+                let devices = [];
+
+                for (let k = 2; k < partials.length - 1; k++) {
+                    devices.push(partials[k].substr(0, portIndex).trim());
                 }
 
-                resolve(list);
-            })
+                resolve(devices);
+            });
         });
     };
 
-    CameraController.prototype.capture = function (deviceName) {
+    CameraController.prototype.capture = function (deviceName, index) {
         return new Promise(function (resolve, reject) {
             if (!deviceName) {
                 reject('Device was not specified');
@@ -33,34 +43,22 @@ let CameraController = function () {
             }
 
             try {
-                childProcess.exec('gphoto2 --camera "'+deviceName+'" --capture-image-and-download', function(err, out){
-                   if(err){
-                       reject(err);
-                       return;
-                   }
 
-                   let result = out.match(/\bSaving file as.*\b/g);
-                   if(!result || result.leading !== 1){
-                       reject('Could not extract stored camera file name');
-                       return;
-                   }
+                let filePath = path.join(config.imageStorageDirectory, 'image_' + index + '.jpg');
 
-                   let fName = result[0].substr(15);
+                childProcess.exec('sudo gphoto2 --camera="' + deviceName +
+                    '" --capture-image-and-download  --stdout > ' + filePath,
+                    {
+                        maxBuffer: 1024 * 100000000
+                    }, function (err) {
 
-                   const filePath = path.join(__dirname, fName);
+                        if (err) {
+                            reject(err);
+                            return;
+                        }
 
-                   let data = fs.readFileSync(filePath);
-                   if(!data){
-                       reject('Error occurred while reading image file data. No data received');
-                       return;
-                   }
-
-                   let dataString = "data:image/jpeg;base64," + data.toString('base64');
-
-                   fs.unlinkSync(filePath);
-
-                   resolve(dataString);
-                });
+                        resolve();
+                    });
             } catch (e) {
                 reject('Error occurred while capturing image: ' + e);
             }

@@ -69,11 +69,6 @@ module.exports = {
             }
 		});
 
-		/// OBSOLETE
-        // server.get(prefix+'/image/last', function(req, res){
-		 //    return res.send({image: manager.getLastImage()});
-        // });
-
 		server.get(prefix+'/image/:id', function(req, res){
 		    try {
 		        if(!req.params){
@@ -121,11 +116,6 @@ module.exports = {
         server.get(prefix+'/directions', function(req, res){
            return res.send(manager.getDirections());
         });
-
-        // TODO: Implement
-        // server.get(prefix+'/cameras', function(req, res){
-        //
-        // });
 
         server.post(prefix+'/config', function(req, res, next){
 

@@ -60,7 +60,8 @@ let ManagerLogic = function () {
                         stepAngle: me.mDriver.getMinAngle(),
                         direction: 'counter-clockwise',
                         cameras: cameras,
-                        camera: ''
+                        camera: '',
+                        isLargeImagesMode: true
                     });
                 })
             });
@@ -123,40 +124,40 @@ let ManagerLogic = function () {
 
                         let imageId = newImage.id;
 
-                        try{
+                        try {
 
-                        promisesUtils.processPromisesArray(imagesCollection, function (chunk) {
-                            return new Promise(function (resolve, reject) {
+                            promisesUtils.processPromisesArray(imagesCollection, function (chunk) {
+                                return new Promise(function (resolve, reject) {
 
-                                //let imageData = imageUtils.getFileAsBase64(chunk.image);
+                                    //let imageData = imageUtils.getFileAsBase64(chunk.image);
 
-                                // TODO: Implement new model
-                                models.Chunk.create({
-                                    index: chunk.index,
-                                    data: fs.readFileSync(chunk.image),
-                                    imageId: imageId
-                                }).then(data => {
-                                    // definitionObject.push({
-                                    //     index: data.index,
-                                    //     id: data.id
-                                    // });
-                                    resolve();
-                                }).catch(error => {
-                                    newImage.destroy();
-                                    reject(error);
+                                    // TODO: Implement new model
+                                    models.Chunk.create({
+                                        index: chunk.index,
+                                        data: fs.readFileSync(chunk.image),
+                                        imageId: imageId
+                                    }).then(data => {
+                                        // definitionObject.push({
+                                        //     index: data.index,
+                                        //     id: data.id
+                                        // });
+                                        resolve();
+                                    }).catch(error => {
+                                        newImage.destroy();
+                                        reject(error);
+                                    });
                                 });
+                            }).then(function () {
+                                resolve(imageId);
+                            }).catch(function (error) {
+                                newImage.destroy();
+                                reject(error);
                             });
-                        }).then(function () {
-                            resolve(imageId);
-                        }).catch(function (error) {
-                            newImage.destroy();
-                            reject(error);
-                        });
-                    }
-                    catch (eeee){
+                        }
+                        catch (eeee) {
                             reject(eeee);
                             console.log(eeee)
-                    }
+                        }
 
                     }).catch(error => {
                         reject(error);
@@ -201,7 +202,7 @@ let ManagerLogic = function () {
                                 attributes: ['id']
                             }
                         ]
-                    }).then(r=>{
+                    }).then(r => {
                         resolve(r);
                     }, e => {
                         reject(e);
@@ -224,7 +225,7 @@ let ManagerLogic = function () {
                     resolve({
                         index: chu.index,
                         _id: chu.id,
-                        image: "data:image/jpeg;base64,"+new Buffer(chu.data).toString('base64')
+                        image: "data:image/jpeg;base64," + new Buffer(chu.data).toString('base64')
                     })
                 }, reject);
             })
@@ -342,16 +343,21 @@ let ManagerLogic = function () {
                     return;
                 }
 
-                if ((!me.configuration.camera || me.configuration.camera === '')) {
-                    reject("Empty image data");
+                if ((!me.configuration.camera || me.configuration.camera === '') && !me.configuration.isLargeImagesMode) {
+                    reject("Invalid configuration. Camera not set for small images mode");
                     return;
                 }
 
-                me.cameraController.capture(me.configuration.camera, me.acquisitionData.imageIndex).then(function () {
+                if(!me.configuration.isLargeImagesMode) {
+                    me.cameraController.capture(me.configuration.camera, me.acquisitionData.imageIndex).then(function () {
+                        pushAndRotate(resolve, reject);
+                    }, function (error) {
+                        reject(error);
+                    });
+                }
+                else{
                     pushAndRotate(resolve, reject);
-                }, function (error) {
-                    reject(error);
-                });
+                }
             });
         };
 
@@ -381,6 +387,18 @@ let ManagerLogic = function () {
 
                 });
             } else {
+
+                if(me.configuration.isLargeImagesMode){
+                    resolve({
+                        status: acquisitionStatuses.FINISHED,
+                        progress: progress
+                    });
+
+                    me.initializeAcquisitionData();
+                    me.currentStatus = statuses.READY;
+
+                    return;
+                }
 
                 try {
 

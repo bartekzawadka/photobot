@@ -15,11 +15,11 @@
   },
   "imageStorageDirectory": "/home/pi/stroller/data",
   "db": {
-    "collection": "Images",
     "username": "",
     "password": "",
     "database": "stroller",
-    "host": "localhost"
+    "host": "localhost",
+    "dialect": "mysql"
   },
   "thumbnailWidth": 200
 }

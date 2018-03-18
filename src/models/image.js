@@ -1,23 +1,12 @@
-let mongoose = require('mongoose');
-let path = require('path');
-let config = require(path.join(__dirname, '..', '..', 'config.json'));
+module.exports = function(sequelize, DataTypes){
+    let image = sequelize.define("Image", {
+        id: {type: DataTypes.BIGINT, allowNull: false, primaryKey: true, autoIncrement: true},
+        thumbnail: {type: DataTypes.TEXT, allowNull: true},
+        createdAt:{type: DataTypes.DATE, allowNull: true}
+    });
 
+    image.hasMany(sequelize.models.Chunk, { as: 'chunks', foreignKey: { name: 'imageId', allowNull: false }, onDelete: 'CASCADE' });
+    sequelize.models.Chunk.belongsTo(image, { as: 'chunks', foreignKey: { name:'imageId', allowNull: false }, onDelete: 'CASCADE' });
 
-let imageSchema = mongoose.Schema({
-    thumbnail: {type: String, required: false},
-    chunks: [{type: mongoose.Schema.Types.ObjectId, ref: 'Chunk', required: true}],
-    createdAt: {type: Date, required: true}
-}, {
-    collection: config.db.collection
-});
-
-imageSchema.pre('validate', function(next){
-   if(this.isNew){
-       this.createdAt = new Date();
-   }
-
-   next();
-});
-
-let Image = mongoose.model('Image', imageSchema);
-module.exports = Image;
+    return image;
+};

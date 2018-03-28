@@ -129,18 +129,11 @@ let ManagerLogic = function () {
                             promisesUtils.processPromisesArray(imagesCollection, function (chunk) {
                                 return new Promise(function (resolve, reject) {
 
-                                    //let imageData = imageUtils.getFileAsBase64(chunk.image);
-
-                                    // TODO: Implement new model
                                     models.Chunk.create({
                                         index: chunk.index,
                                         data: fs.readFileSync(chunk.image),
                                         imageId: imageId
-                                    }).then(data => {
-                                        // definitionObject.push({
-                                        //     index: data.index,
-                                        //     id: data.id
-                                        // });
+                                    }).then(() => {
                                         resolve();
                                     }).catch(error => {
                                         newImage.destroy();
@@ -219,7 +212,6 @@ let ManagerLogic = function () {
                     return;
                 }
 
-                // TODO: Implement new model
                 models.Chunk.findById(id).then((chu) => {
 
                     resolve({
@@ -234,7 +226,6 @@ let ManagerLogic = function () {
         ManagerLogic.prototype.getImages = function () {
             return new Promise(function (resolve, reject) {
 
-                // TODO: Implement new model
                 models.Image.findAll({
                     attributes: ['id', 'thumbnail', 'createdAt'],
                     order: [['createdAt', 'DESC']]
@@ -265,10 +256,12 @@ let ManagerLogic = function () {
                 }
             }
 
-            configuration.cameras = me.configuration.cameras;
-            if (configuration.camera && this.configuration.cameras) {
-                if (!_.includes(this.configuration.cameras, configuration.camera)) {
-                    throw "Invalid camera name. Camera '" + configuration.camera + "' is not available";
+            if(!this.configuration.isLargeImagesMode){
+                configuration.cameras = me.configuration.cameras;
+                if (configuration.camera && this.configuration.cameras) {
+                    if (!_.includes(this.configuration.cameras, configuration.camera)) {
+                        throw "Invalid camera name. Camera '" + configuration.camera + "' is not available";
+                    }
                 }
             }
 
@@ -438,7 +431,7 @@ let ManagerLogic = function () {
                 me.initializeAcquisitionData();
                 me.acquisitionData.token = uuidUtils.generateGuid();
 
-                if (me.configuration.camera) {
+                if (me.configuration.camera && !me.configuration.isLargeImagesMode) {
                     me.appendImageAndRotate(me.acquisitionData.token).then(function (result) {
                         result.token = me.acquisitionData.token;
                         resolve(result);
@@ -447,7 +440,7 @@ let ManagerLogic = function () {
                     });
                 }
                 else {
-                    resolve(me.acquisitionData.token);
+                    resolve({token: me.acquisitionData.token});
                 }
             });
         };
